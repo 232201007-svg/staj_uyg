@@ -1,10 +1,11 @@
-'use client'; // Next.js'te formlar ve buton tıklamaları için bu şarttır
+'use client'; // Next.js'te form hareketleri ve butonlar için bu şarttır
 import { useState } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function RegisterPage() {
-  // Dokümanın istediği İngilizce standartlarında state yönetimi (Clean Code)
+  // Temiz kod (Clean Code) standartlarında İngilizce state'ler
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,21 +20,21 @@ export default function RegisterPage() {
     setError('');
 
     try {
-      // Backend API'mize Axios ile HTTP POST isteği atıyoruz (Faz 4 - Madde 1)
+      // Backend API'mize Axios ile HTTP POST isteği fırlatıyoruz
       const response = await axios.post('http://localhost:5000/api/auth/register', {
         name,
         email,
         password
       });
 
-      // Başarılıysa kullanıcıyı bilgilendir ve 2 saniye sonra Login'e fırlat
-      setMessage(response.data.message);
+      // Başarılıysa yeşil mesajı bastır ve 2 saniye sonra login sayfasına uçur
+      setMessage(response.data.message || "Registered successfully!");
       setTimeout(() => {
         router.push('/login');
       }, 2000);
 
     } catch (err) {
-      // Dokümanın istediği mantıklı hata gösterimi (Error Handling)
+      // Backend'den dönen anlamlı hata mesajını yakalıyoruz (Error Handling)
       setError(err.response?.data?.message || 'Something went wrong!');
     }
   };
@@ -43,8 +44,8 @@ export default function RegisterPage() {
       <div className="w-full max-w-md p-8 bg-white rounded-lg shadow-md">
         <h2 className="text-2xl font-bold text-center text-gray-800 mb-6">Create an Account</h2>
         
-        {message && <p className="p-3 mb-4 text-green-700 bg-green-100 rounded text-center">{message}</p>}
-        {error && <p className="p-3 mb-4 text-red-700 bg-red-100 rounded text-center">{error}</p>}
+        {message && <p className="p-3 mb-4 text-green-700 bg-green-100 rounded text-center font-medium">{message}</p>}
+        {error && <p className="p-3 mb-4 text-red-700 bg-red-100 rounded text-center font-medium">{error}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -84,6 +85,13 @@ export default function RegisterPage() {
             Register
           </button>
         </form>
+
+        <div className="text-center text-sm text-gray-600 mt-4">
+          Already have an account?{' '}
+          <Link href="/login" className="text-blue-600 hover:underline font-medium">
+            Login here
+          </Link>
+        </div>
       </div>
     </div>
   );
