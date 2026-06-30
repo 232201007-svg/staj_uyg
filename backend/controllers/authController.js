@@ -1,33 +1,38 @@
-const User = require('../models/User');
-const bcrypt = require('bcryptjs'); // Şifreyi güvenli hale getirmek için dokümandaki kütüphane
+const { sql } = require('../config/db'); // Veri tabanı bağlantımız
+const bcrypt = require('bcryptjs');
 
-// Kayıt Olma Fonksiyonu
+// Kayıt Olma (Register) Fonksiyonu
 const register = async (req, res) => {
   try {
-    const { ad, soyad, eposta, sifre } = req.body;
+    const { name, email, password } = req.body; // İngilizce alan standartları
 
-    // 1. Bu e-posta daha önce kullanılmış mı kontrol et
-    const userExists = await User.findOne({ eposta });
-    if (userExists) {
-      return res.status(400).json({ message: "Bu e-posta adresi zaten kayıtlı!" });
+    // 1. Gelen veriler boş mu kontrolü (Hata yönetimi)
+    if (!name || !email || !password) {
+        return res.status(400).json({ message: "All fields are required!" });
     }
 
-    // 2. Şifreyi hashle (Geri dönüştürülemeyecek şekilde şifrele)
+    // 2. Bu e-posta daha önce kayıt olmuş mu? (SQL Sorgusu)
+    // BAK BURADA ESKİDEN "User.findOne" VARDI, ŞİMDİ DOĞRUDAN SQL SORGUSU VAR!
+    const userCheck = await sql.query`SELECT * FROM Users WHERE email = ${email}`;
+    if (userCheck.recordset.length > 0) {
+        return res.status(400).json({ message: "This email is already registered!" });
+    }
+
+    // 3. Şifreyi güvenli hale getirmek için hashle (Bcrypt)
     const salt = await bcrypt.genSalt(10);
-    const hashedSifre = await bcrypt.hash(sifre, salt);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 3. Yeni kullanıcıyı oluştur ve veri tabanına kaydet
-    const newUser = new User({
-      ad,
-      soyad,
-      eposta,
-      sifre: hashedSifre
-    });
+    // 4. Yeni kullanıcıyı MS SQL veri tabanına kaydet
+    await sql.query`
+        INSERT INTO Users (name, email, password) 
+        VALUES (${name}, ${email}, ${hashedPassword})
+    `;
 
-    await newUser.save();
-    res.status(201).json({ message: "Kullanıcı başarıyla kayıt oldu!" });
+    // 5. Başarılı sonucunu frontend'e dön
+    res.status(201).json({ message: "User registered successfully!" });
 
   } catch (error) {
+    // Dokümanın istediği try-catch hata yönetimi
     res.status(500).json({ message: "Sunucu hatası!", error: error.message });
   }
 };

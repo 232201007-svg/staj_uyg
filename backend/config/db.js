@@ -1,34 +1,25 @@
 const sql = require('mssql');
-require('dotenv').config();
+require('dotenv').config(); 
 
-// Windows Authentication ile uyumlu SQL Server bağlantı ayarları
+// SQL Server şifreli kullanıcı bağlantı ayarları
 const config = {
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
     server: process.env.DB_SERVER, 
     database: process.env.DB_NAME,
     options: {
         encrypt: true, 
         trustServerCertificate: true // Lokal bilgisayarda sertifika hatası vermemesi için şart
-    },
-    // EN ÖNEMLİ KISIM: Windows oturumunu kullanmasını söyler
-    authentication: {
-        type: 'default',
-        options: {
-            userName: '', // Boş bırakıyoruz ki Windows kimliğini kullansın
-            password: ''
-        }
-    },
-    // Bazı MS SQL sürümleri için direkt Windows Authentication emri
-    domain: '', 
-    parseJSON: true
+    }
 };
 
 const connectDB = async () => {
     try {
         await sql.connect(config);
-        console.log("Gardaş MS SQL Server'a Windows Authentication ile başarıyla bağlandık!");
+        console.log("Gardaş MS SQL Server bağlantısı başarıyla kuruldu!");
     } catch (err) {
         console.error("Veri tabanına bağlanırken hata çıktı: ", err.message);
-        process.exit(1);
+        process.exit(1); 
     }
 };
 
