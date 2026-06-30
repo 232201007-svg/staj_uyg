@@ -1,6 +1,7 @@
 const { sql } = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken'); // Yeni yüklediğimiz JWT kütüphanesi
+const crypto = require('crypto'); // Rastgele token üretmek için Node.js'in kendi paketi
 
 // 1. Kayıt Olma Fonksiyonu (Zaten yazmıştık, aynen duruyor)
 const register = async (req, res) => {
@@ -70,5 +71,92 @@ const login = async (req, res) => {
   }
 };
 
+// 3. YENİ: Şifremi Unuttum (Forgot Password)
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).json({ message: "Email is required!" });
+    }
+
+    // Kullanıcıyı e-posta ile ara
+    const userResult = await sql.query`SELECT * FROM Users WHERE email = ${email}`;
+    if (userResult.recordset.length === 0) {
+        return res.status(404).json({ message: "User not found with this email!" });
+    }
+
+    const user = userResult.recordset[0];
+
+    // Rastgele 20 karakterlik benzersiz bir token üret
+    const resetToken = crypto.randomBytes(20).toString('hex');
+
+    // Token'ın ömrünü 10 dakika yap (Şu anki zamana 10 dakika ekle)
+    const expireDate = new Date(Date.now() + 10 * 60 * 1000);
+
+    // Veri tabanındaki ilgili kullanıcının reset alanlarını güncelle
+    await sql.query`
+        UPDATE Users 
+        SET resetPasswordToken = ${resetToken}, resetPasswordExpire = ${expireDate}
+        WHERE id = ${user.id}
+    `;
+
+    // Şefin istediği tüyo: Linki terminale konsol çıktısı olarak yazdırıyoruz
+    const resetUrl = `http://localhost:3000/reset-password/${resetToken}`;
+    console.log("\nGardaş Şifre Sıfırlama Linki Aşağıda, Kopyala Next.js'te Lazım Olacak:");
+    console.log(`👉 ${resetUrl} \n`);
+
+    res.status(200).json({ message: "Reset token generated and sent to console!" });
+
+  } catch (error) {
+    res.status(500).json({ message: "Sunucu hatası!", error: error.message });
+  }
+};
+
+// 4. YENİ: Yeni Şifreyi Belirleme (Reset Password)
+const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body; // Token ve yeni şifreyi alıyoruz
+
+    if (!token || !newPassword) {
+        return res.status(400).json({ message: "Token and new password are required!" });
+    }
+
+    // Dokümanın istediği veri kontrolü: Şifre en az 6 karakter mi? (Faz 2 - Madde 4)
+    if (newPassword.length < 6) {
+        return res.status(400).json({ message: "Password must be at least 6 characters long!" });
+    }
+
+    // Veri tabanında bu token'a sahip ve süresi geçmemiş (Expire tarihi şu andan büyük) kullanıcıyı ara
+    const now = new Date();
+    const userResult = await sql.query`
+        SELECT * FROM Users 
+        WHERE resetPasswordToken = ${token} AND resetPasswordExpire > ${now}
+    `;
+
+    if (userResult.recordset.length === 0) {
+        return res.status(400).json({ message: "Invalid or expired token!" });
+    }
+
+    const user = userResult.recordset[0];
+
+    // Yeni şifreyi Bcrypt ile hashle (Temiz ve Güvenli Kod)
+    const salt = await bcrypt.genSalt(10);
+    const hashedNewPassword = await bcrypt.hash(newPassword, salt);
+
+    // Kullanıcının şifresini güncelle, token alanlarını sıfırla (NULL yap)
+    await sql.query`
+        UPDATE Users 
+        SET password = ${hashedNewPassword}, resetPasswordToken = NULL, resetPasswordExpire = NULL
+        WHERE id = ${user.id}
+    `;
+
+    res.status(200).json({ message: "Password reset successful! You can now login with your new password." });
+
+  } catch (error) {
+    res.status(500).json({ message: "Sunucu hatası!", error: error.message });
+  }
+};
+
 // İki fonksiyonu da dışarıya ihraç ediyoruz
-module.exports = { register, login };
+module.exports = { register, login, forgotPassword, resetPassword };
