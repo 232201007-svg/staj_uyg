@@ -1,44 +1,49 @@
-'use client'; // Form ve buton hareketleri için şart
-import { useState } from 'react';
+'use client'; 
+import { toast } from 'react-toastify';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function LoginPage() {
-  // İngilizce standartlarında state yönetimi
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false); // Buton kilidi için state
   
   const router = useRouter();
+
+  // KURUMSAL AYAR: Eğer adam zaten giriş yapmışsa direkt Dashboard'a şutla!
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      router.push('/dashboard');
+    }
+  }, [router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage('');
     setError('');
+    setLoading(true); // İstek başladı, butonu kilitliyoruz
 
     try {
-      // Backend API'mize giriş isteği atıyoruz (Faz 4 - Madde 1)
       const response = await axios.post('http://localhost:5000/api/auth/login', {
         email,
         password
       });
 
-      // Başarılıysa bize dönen o meşhur JWT biletini (token) tarayıcının hafızasına (localStorage) gömüyoruz
-      // Doküman: "Giriş başarılı ise kullanıcıya bir token verilmeli ve bu token saklanmalıdır."
       localStorage.setItem('token', response.data.token);
+      toast.success('Giriş başarılı! Dashboard\'a uçuruluyorsunuz...');
       
-      setMessage('Login successful! Redirecting...');
-      
-      // 1.5 saniye sonra kullanıcıyı korumalı Dashboard sayfasına uçuruyoruz
       setTimeout(() => {
         router.push('/dashboard');
       }, 1500);
 
     } catch (err) {
-      // Dokümanın istediği hata yönetimi
-      setError(err.response?.data?.message || 'Invalid email or password!');
+      toast.error(err.response?.data?.message || 'E-posta veya şifre hatalı!');
+      setLoading(false); // Hata gelirse butonu tekrar açıyoruz
     }
   };
 
@@ -80,11 +85,21 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className="w-full py-2 px-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-md transition duration-200"
+            disabled={loading} // İstek sırasındaki kilit mekanizması
+            className={`w-full py-2 px-4 text-white font-semibold rounded-md transition duration-200 ${
+              loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'
+            }`}
           >
-            Login
+            {loading ? 'Processing...' : 'Login'}
           </button>
         </form>
+
+        <div className="text-center text-sm text-gray-600 mt-4">
+          Don't have an account?{' '}
+          <Link href="/register" className="text-blue-600 hover:underline font-medium">
+            Register here
+          </Link>
+        </div>
       </div>
     </div>
   );

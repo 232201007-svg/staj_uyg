@@ -1,41 +1,49 @@
-'use client'; // Next.js'te form hareketleri ve butonlar için bu şarttır
-import { useState } from 'react';
+'use client'; 
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function RegisterPage() {
-  // Temiz kod (Clean Code) standartlarında İngilizce state'ler
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false); // Buton kilidi için state
   
   const router = useRouter();
+
+  // KURUMSAL AYAR: Eğer adam zaten giriş yapmışsa kayıt sayfasına sokma, Dashboard'a şutla!
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      router.push('/dashboard');
+    }
+  }, [router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage('');
     setError('');
+    setLoading(true); // İstek başladı, butonu kilitliyoruz
 
     try {
-      // Backend API'mize Axios ile HTTP POST isteği fırlatıyoruz
       const response = await axios.post('http://localhost:5000/api/auth/register', {
         name,
         email,
         password
       });
 
-      // Başarılıysa yeşil mesajı bastır ve 2 saniye sonra login sayfasına uçur
       setMessage(response.data.message || "Registered successfully!");
+      
       setTimeout(() => {
         router.push('/login');
       }, 2000);
 
     } catch (err) {
-      // Backend'den dönen anlamlı hata mesajını yakalıyoruz (Error Handling)
       setError(err.response?.data?.message || 'Something went wrong!');
+      setLoading(false); // Hata gelirse butonu tekrar açıyoruz
     }
   };
 
@@ -78,11 +86,15 @@ export default function RegisterPage() {
               required
             />
           </div>
+          
           <button
             type="submit"
-            className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md transition duration-200"
+            disabled={loading} // İstek sırasındaki kilit mekanizması
+            className={`w-full py-2 px-4 text-white font-semibold rounded-md transition duration-200 ${
+              loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+            }`}
           >
-            Register
+            {loading ? 'Processing...' : 'Register'}
           </button>
         </form>
 
