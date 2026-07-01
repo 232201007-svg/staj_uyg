@@ -142,12 +142,6 @@ export default function DashboardPage() {
             </h1>
             <p className="text-sm text-slate-400 mt-1">Yönetim paneline hoş geldiniz. Sistem durumu kararlı.</p>
           </div>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-bold rounded-xl transition duration-200 cursor-pointer text-center"
-          >
-            Çıkış Yap
-          </button>
         </div>
 
         {/* 📊 ANA İÇERİK ALANI */}
