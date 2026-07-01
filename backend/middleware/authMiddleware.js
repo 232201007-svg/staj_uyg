@@ -1,33 +1,54 @@
 const jwt = require('jsonwebtoken');
 
 const protect = async (req, res, next) => {
-    let token;
+  let token;
 
-    // 1. İsteklerin "Headers" kısmında "Authorization" var mı ve "Bearer" ile mi başlıyor kontrol et
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-        try {
-            // "Bearer eyJhbGciOi..." şeklindeki yazıdan sadece token kısmını (ikinci parçayı) alıyoruz
-            token = req.headers.authorization.split(' ')[1];
+  // 1. Header kontrolü (Bearer token var mı?)
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    try {
+      // Token'ı şifreli metinden ayırıyoruz
+      token = req.headers.authorization.split(' ')[1];
 
-            // Token'ı bizim gizli anahtarımızla (JWT_SECRET) çözüyoruz/doğruluyoruz
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      // Token'ı gizli anahtarla çözüyoruz
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'gizli_anahtarim');
 
-            // Bilet doğruysa, içindeki kullanıcı bilgilerini isteğin (req) içine gömüyoruz ki sonraki fonksiyonlar kullansın
-            req.user = decoded;
+      // 🚨 SÜSLÜ PARANTEZLERİ DÜZELTİLMİŞ SEKTÖR:
+      // Global veya yerel sql bağlantısını güvenli bir şekilde tetikliyoruz
+      let mssql;
+      try {
+        mssql = require('mssql');
+      } catch (err) {
+        throw new Error("mssql modülü yüklenemedi!");
+      }
 
-            // Her şey yolunda, bir sonraki aşamaya geçebilirsin komutu:
-            next();
+      // Veritabanı bağlantı havuzunu açıyoruz
+      let pool = await mssql.connect();
+      
+      // Veritabanından e-posta dahil tüm satırı çekiyoruz
+      const userResult = await pool.request()
+        .input('id', decoded.id)
+        .query('SELECT id, name, email, createdAt FROM Users WHERE id = @id');
 
-        } catch (error) {
-            // Bilet sahteyse veya süresi geçmişse buraya düşer
-            return res.status(401).json({ message: "Not authorized, token verification failed!" });
-        }
+      const dbUser = userResult.recordset[0];
+
+      if (!dbUser) {
+        return res.status(401).json({ message: "Bu token'a ait kullanıcı bulunamadı!" });
+      }
+
+      // 🚀 Artık req.user içinde id, name VE email aslanlar gibi bir arada duruyor!
+      req.user = dbUser;
+
+      return next(); // Kapıyı aç, yoluna devam etsin
+    } catch (error) {
+      console.error('Yetkilendirme middleware hatası:', error);
+      return res.status(401).json({ message: 'Yetkilendirme başarısız, geçersiz token!' });
     }
+  }
 
-    // 2. Eğer istekte hiç token gönderilmediyse
-    if (!token) {
-        return res.status(401).json({ message: "Not authorized, no token provided!" });
-    }
+  // Eğer if bloğuna hiç girmediyse veya token yoksa buraya düşer
+  if (!token) {
+    return res.status(401).json({ message: 'Yetkilendirme başarısız, token bulunamadı!' });
+  }
 };
 
 module.exports = { protect };

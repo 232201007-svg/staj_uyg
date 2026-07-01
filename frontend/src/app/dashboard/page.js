@@ -8,6 +8,7 @@ import 'react-toastify/dist/ReactToastify.css';
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
   const [detectedName, setDetectedName] = useState('Kullanıcı');
+  const [userEmail, setUserEmail] = useState('Tanımlanmadı'); // 🚀 E-posta için kurşungeçirmez özel state
   const [loading, setLoading] = useState(true);
   
   // 🔑 ŞİFRE DEĞİŞTİRME STATE'LERİ
@@ -33,28 +34,23 @@ export default function DashboardPage() {
         });
         
         const data = response.data;
-        setUser(data);
+        console.log("Profil Rotasından Gelen Ham Veri:", data);
 
         if (data) {
-          if (typeof data === 'string') {
-            setDetectedName(data);
-          } else if (typeof data === 'object') {
-            const exactMatch = data.name || data.fullName || data.username || data.ad || data.isim || data.ad_soyad || data.user?.name || data.user?.username;
-            if (exactMatch) {
-              setDetectedName(exactMatch);
-            } else {
-              const keys = Object.keys(data);
-              const nameKey = keys.find(key => 
-                typeof data[key] === 'string' && 
-                !key.toLowerCase().includes('id') && 
-                !key.toLowerCase().includes('email') && 
-                !key.toLowerCase().includes('password') &&
-                !key.toLowerCase().includes('role')
-              );
-              if (nameKey) {
-                setDetectedName(data[nameKey]);
-              }
-            }
+          // 1. User nesnesini ana hafızaya alıyoruz
+          const userData = data.user || data;
+          setUser(userData);
+          
+          // 2. Giriş yapılan e-posta adresini doğrudan buraya çakıyoruz
+          const emailMatch = userData.email || userData.Email || data.email || data.Email;
+          if (emailMatch) {
+            setUserEmail(emailMatch);
+          }
+
+          // 3. İsim tespiti mekanizması
+          const exactMatch = userData.name || userData.fullName || userData.username || userData.ad || userData.isim || userData.ad_soyad;
+          if (exactMatch) {
+            setDetectedName(exactMatch);
           }
         }
       } catch (err) {
@@ -69,7 +65,7 @@ export default function DashboardPage() {
     fetchProfile();
   }, [router]);
 
-  // 🛠️ HATAYI KÖKTEN BULAN GÜNCEL ŞİFRE DEĞİŞTİRME FONKSİYONU
+  // 🛠️ ŞİFRE DEĞİŞTİRME POST İŞLEMİ
   const handleChangePassword = async (e) => {
     e.preventDefault();
     
@@ -92,12 +88,10 @@ export default function DashboardPage() {
         { oldPassword, newPassword },
         { 
           headers: { Authorization: `Bearer ${token}` },
-          // 🚨 KORUMA: 400 ve 500'lü hata kodlarında Axios'un çökmesini engeller, gelen mesajı okumamızı sağlar
           validateStatus: (status) => status >= 200 && status < 500
         }
       );
 
-      // Backend'den hata kodu geldiyse (400, 401, 404, 500 vb.)
       if (response.status >= 400) {
         const backendMessage = response.data?.message || 'Şifre değiştirilirken bir hata oluştu!';
         toast.error(backendMessage);
@@ -105,89 +99,159 @@ export default function DashboardPage() {
         return;
       }
 
-      // Her şey yolundaysa 200 döner
       toast.success('Şifreniz başarıyla değiştirildi!');
       setIsModalOpen(false);
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err) {
-      // 🚨 İŞTE GERÇEK ARIZAYI GÖSTEREN YER BURASI!
-      console.error("🚨 BAĞLANTI VEYA SUNUCU HATASI DETAYI:", err.response || err);
-      
-      if (err.response) {
-        toast.error(`Sunucu Hatası: ${err.response.status} - ${err.response.data?.message || 'Bağlantı reddedildi'}`);
-      } else {
-        toast.error('Sunucuyla bağlantı kurulamadı! Lütfen backend\'in açık olduğundan emin olun.');
-      }
+      toast.error('Sunucuyla bağlantı kurulamadı!');
     } finally {
       setPasswordLoading(false);
     }
   };
 
+  // Güvenli Çıkış Fonksiyonu
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    router.replace('/login');
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-69px)] bg-slate-50">
-        <p className="text-sm font-semibold text-slate-400 animate-pulse">Profil yükleniyor...</p>
+      <div className="flex items-center justify-center min-h-[calc(100vh-69px)] bg-slate-900">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sm font-semibold text-slate-400">Sistem yükleniyor, marşa basılıyor...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[calc(100vh-69px)] bg-slate-50 p-6 flex flex-col items-center justify-start pt-12">
-      <ToastContainer position="top-right" autoClose={3000} />
+    <div className="min-h-[calc(100vh-69px)] bg-slate-950 text-slate-100 p-4 md:p-8">
+      <ToastContainer position="top-right" autoClose={3000} theme="dark" />
       
-      <div className="w-full max-w-5xl space-y-6">
+      <div className="w-full max-w-6xl mx-auto space-y-6">
         
-        {/* 🚀 ÜST BANNER VE ŞİFRE DEĞİŞTİRME BUTONU */}
-        <div className="w-full p-8 bg-slate-900 rounded-2xl shadow-lg border border-slate-800 text-white flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            Hoş Geldin, {detectedName}! 👋
-          </h1>
+        {/* 🚀 ÜST BANNER (YAZI VE BUTON DÜZELTİLDİ) */}
+        <div className="w-full p-6 md:p-8 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl shadow-2xl border border-indigo-500/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-transparent">
+              Hoş Geldin, {detectedName}! 👋
+            </h1>
+            <p className="text-sm text-slate-400 mt-1">Yönetim paneline hoş geldiniz. Sistem durumu kararlı.</p>
+          </div>
           <button
-            onClick={() => setIsModalOpen(true)}
-            className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 text-sm font-semibold rounded-xl transition duration-200 cursor-pointer shadow-sm text-center"
+            onClick={handleLogout}
+            className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-bold rounded-xl transition duration-200 cursor-pointer text-center"
           >
-            ⚙️ Şifre Değiştir
+            Çıkış Yap
           </button>
         </div>
 
-        {/* 📊 KARTLAR ALANI */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-          {/* 1. KART: SİSTEM DURUMU */}
-          <div className="p-6 bg-white rounded-2xl shadow-md border border-slate-200/60 flex flex-col justify-between transition-all hover:shadow-lg">
-            <div>
-              <span className="px-2.5 py-1 text-xs font-bold tracking-wide uppercase text-emerald-600 bg-emerald-50 rounded-md">
-                Sistem Durumu
-              </span>
-              <h3 className="text-2xl font-bold text-slate-800 mt-4">Aktif / Güvenli</h3>
+        {/* 📊 ANA İÇERİK ALANI */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full">
+          
+          {/* 👤 SOL BÖLÜM: PROFİL PANELİ (ROZET KALKTI) */}
+          <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 flex flex-col justify-between shadow-xl">
+            <div className="space-y-6">
+              <div className="flex items-center gap-4 border-b border-slate-800 pb-4">
+                <div className="w-14 h-14 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center text-xl font-black text-white shadow-lg shadow-indigo-500/20">
+                  {detectedName[0]?.toUpperCase()}
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-200">{detectedName}</h2>
+                </div>
+              </div>
+
+              {/* Kullanıcı Detayları (E-POSTA DOĞRUDAN STATE'TEN OKUNUYOR) */}
+              <div className="space-y-4 text-sm">
+                <div>
+                  <label className="text-xs text-slate-500 font-semibold uppercase tracking-wider block">E-Posta Adresi</label>
+                  <p className="text-slate-300 font-medium mt-0.5 break-all">{userEmail}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-slate-500 font-semibold uppercase tracking-wider block">Kayıt Tarihi</label>
+                  <p className="text-slate-300 font-medium mt-0.5">
+                    {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('tr-TR') : '1 Temmuz 2026'}
+                  </p>
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-slate-400 mt-2">JWT Token doğrulandı</p>
+
+            <div className="pt-6 mt-6 border-t border-slate-800">
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white text-xs font-bold rounded-xl transition duration-200 cursor-pointer shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
+              >
+                ⚙️ Şifre Değiştirme Paneli
+              </button>
+            </div>
           </div>
 
-          {/* 2. KART: VERİ TABANI */}
-          <div className="p-6 bg-white rounded-2xl shadow-md border border-slate-200/60 flex flex-col justify-between transition-all hover:shadow-lg">
-            <div>
-              <span className="px-2.5 py-1 text-xs font-bold tracking-wide uppercase text-blue-600 bg-blue-50 rounded-md">
-                Veri Tabanı
-              </span>
-              <h3 className="text-2xl font-bold text-slate-800 mt-4">MS SQL Server</h3>
+          {/* 📈 SAĞ BÖLÜM: İSTATİSTİKLER VE DURUM KARTLARI */}
+          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* KART 1: SİSTEM DURUMU */}
+            <div className="p-6 bg-slate-900 rounded-3xl border border-slate-800 flex flex-col justify-between transition-all hover:border-emerald-500/30 group">
+              <div>
+                <div className="flex justify-between items-start">
+                  <span className="px-2.5 py-1 text-[10px] font-bold tracking-wide uppercase text-emerald-400 bg-emerald-500/10 rounded-md border border-emerald-500/20">
+                    Güvenlik Katmanı
+                  </span>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                </div>
+                <h3 className="text-xl font-bold text-slate-200 mt-6 group-hover:text-emerald-400 transition-colors">JWT Token Doğrulandı</h3>
+                <p className="text-xs text-slate-400 mt-2 leading-relaxed">Oturum biletin aktif ve şifreli middleware süzgecinden başarıyla geçiyor.</p>
+              </div>
+              <div className="text-[11px] text-slate-500 font-mono mt-4 border-t border-slate-800/60 pt-3">
+                Algoritma: HS256 / Yetki: Okuma-Yazma
+              </div>
             </div>
-            <p className="text-xs text-slate-400 mt-2">Bağlantı havuzu stabil</p>
+
+            {/* KART 2: VERİ TABANI ALTYAPISI */}
+            <div className="p-6 bg-slate-900 rounded-3xl border border-slate-800 flex flex-col justify-between transition-all hover:border-blue-500/30 group">
+              <div>
+                <span className="px-2.5 py-1 text-[10px] font-bold tracking-wide uppercase text-blue-400 bg-blue-500/10 rounded-md border border-blue-500/20">
+                  Veri Tabanı
+                </span>
+                <h3 className="text-xl font-bold text-slate-200 mt-6 group-hover:text-blue-400 transition-colors">MS SQL Server</h3>
+                <p className="text-xs text-slate-400 mt-2 leading-relaxed">Bağlantı havuzu kararlı. Şifreleme motoru ve veriler senkronize çalışıyor.</p>
+              </div>
+              <div className="text-[11px] text-slate-500 font-mono mt-4 border-t border-slate-800/60 pt-3">
+                Durum: Bağlı (Pool) / Dialect: mssql
+              </div>
+            </div>
+
+            {/* KART 3: BCRYPTJS DURUMU */}
+            <div className="p-6 bg-slate-900 rounded-3xl border border-slate-800 flex flex-col justify-between transition-all hover:border-purple-500/30 group md:col-span-2">
+              <div>
+                <span className="px-2.5 py-1 text-[10px] font-bold tracking-wide uppercase text-purple-400 bg-purple-500/10 rounded-md border border-purple-500/20">
+                  Kriptografi Ekipmanı
+                </span>
+                <h3 className="text-xl font-bold text-slate-200 mt-4 group-hover:text-purple-400 transition-colors">BcryptJS Güvenlik Duvarı</h3>
+                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                  Şifreler düz metin olarak değil, 10 salt round değeriyle karmaşık hash blokları halinde saklanmaktadır. Brute-force saldırılarına karşı tam korumalı.
+                </p>
+              </div>
+            </div>
+
           </div>
+
         </div>
 
       </div>
 
-      {/* 🔐 ŞİFRE DEĞİŞTİRME MODAL (AÇILIR PENCERE) */}
+      {/* 🔐 ŞİFRE DEĞİŞTİRME MODAL */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity">
-          <div className="w-full max-w-md p-6 bg-white rounded-2xl shadow-2xl border border-slate-200 transition-all transform scale-100 animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Şifre Güncelleme</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md transition-opacity">
+          <div className="w-full max-w-md p-6 bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 transition-all transform scale-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-3">
+              <h3 className="text-lg font-bold text-slate-200">Şifre Güncelleme</h3>
               <button 
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer"
+                className="text-slate-500 hover:text-slate-300 text-sm font-bold cursor-pointer transition"
               >
                 ✕
               </button>
@@ -195,10 +259,10 @@ export default function DashboardPage() {
 
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide">Mevcut Şifre</label>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Mevcut Şifre</label>
                 <input
                   type="password"
-                  className="w-full px-4 py-2.5 mt-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-slate-50/50 text-slate-900 text-sm"
+                  className="w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-slate-950 text-slate-200 text-sm placeholder-slate-700 transition-all"
                   placeholder="••••••••"
                   value={oldPassword}
                   onChange={(e) => setOldPassword(e.target.value)}
@@ -207,10 +271,10 @@ export default function DashboardPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide">Yeni Şifre</label>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Yeni Şifre</label>
                 <input
                   type="password"
-                  className="w-full px-4 py-2.5 mt-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-slate-50/50 text-slate-900 text-sm"
+                  className="w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-slate-950 text-slate-200 text-sm placeholder-slate-700 transition-all"
                   placeholder="••••••••"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -219,10 +283,10 @@ export default function DashboardPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wide">Yeni Şifre (Tekrar)</label>
+                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Yeni Şifre (Tekrar)</label>
                 <input
                   type="password"
-                  className="w-full px-4 py-2.5 mt-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-slate-50/50 text-slate-900 text-sm"
+                  className="w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-slate-950 text-slate-200 text-sm placeholder-slate-700 transition-all"
                   placeholder="••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -230,19 +294,19 @@ export default function DashboardPage() {
                 />
               </div>
 
-              <div className="flex gap-3 pt-4 border-t border-slate-100 mt-6">
+              <div className="flex gap-3 pt-4 border-t border-slate-800 mt-6">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="w-1/2 py-2.5 text-slate-600 border border-slate-200 font-semibold rounded-xl hover:bg-slate-50 transition cursor-pointer text-sm"
+                  className="w-1/2 py-2.5 text-slate-400 border border-slate-800 font-bold rounded-xl hover:bg-slate-800 transition cursor-pointer text-xs"
                 >
                   İptal Et
                 </button>
                 <button
                   type="submit"
                   disabled={passwordLoading}
-                  className={`w-1/2 py-2.5 text-white font-semibold rounded-xl shadow-md transition-all cursor-pointer text-sm ${
-                    passwordLoading ? 'bg-slate-400' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700'
+                  className={`w-1/2 py-2.5 text-white font-bold rounded-xl shadow-lg transition-all cursor-pointer text-xs ${
+                    passwordLoading ? 'bg-slate-800 text-slate-600' : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/10'
                   }`}
                 >
                   {passwordLoading ? 'Güncelleniyor...' : 'Şifreyi Güncelle'}

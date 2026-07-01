@@ -1,8 +1,7 @@
-'use client'; 
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+'use client';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import axios from 'axios';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -10,137 +9,128 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isReturningUser, setIsReturningUser] = useState(false); 
-  const [customError, setCustomError] = useState('');
-  const [mounted, setMounted] = useState(false); 
   const router = useRouter();
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      router.replace('/dashboard');
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    
+    if (!email || !password) {
+      toast.error('Lütfen tüm alanları doldurun!');
       return;
     }
 
-    const hasVisitedBefore = localStorage.getItem('hasVisitedBefore');
-    if (hasVisitedBefore) {
-      setIsReturningUser(true);
-    }
-    
-    setMounted(true); 
-  }, [router]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+    setLoading(false);
     setLoading(true);
-    setCustomError('');
 
     try {
-      const response = await axios.post(
-        'http://localhost:5000/api/auth/login', 
-        { email, password },
-        { validateStatus: (status) => status >= 200 && status < 500 }
-      );
+      const response = await axios.post('http://localhost:5000/api/auth/login', {
+        email,
+        password
+      }, {
+        validateStatus: (status) => status >= 200 && status < 500
+      });
 
       if (response.status >= 400) {
-        const backendMessage = response.data?.message || '';
-        const lowerMessage = typeof backendMessage === 'string' ? backendMessage.toLowerCase() : '';
-        
-        let errorTxt = 'E-posta adresi veya şifre hatalı!';
-        if (backendMessage && !lowerMessage.includes('invalid')) {
-          errorTxt = backendMessage;
-        }
-
-        toast.error(errorTxt);
-        setCustomError(errorTxt);
+        const backendMessage = response.data?.message || 'Giriş yapılırken bir hata oluştu!';
+        toast.error(backendMessage);
         setLoading(false);
-        return; 
+        return;
       }
 
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('hasVisitedBefore', 'true'); 
-      
-      toast.success('Giriş başarılı! Yönlendiriliyorsunuz...');
-      router.push('/dashboard');
+      // Token'ı hafızaya alıyoruz
+      if (response.data?.token) {
+        localStorage.setItem('token', response.data.token);
+        toast.success('Giriş başarılı! Yönlendiriliyorsunuz...');
+        
+        setTimeout(() => {
+          router.replace('/dashboard');
+        }, 1000);
+      } else {
+        toast.error('Token bilgisi alınamadı!');
+        setLoading(false);
+      }
 
     } catch (err) {
       toast.error('Sunucuyla bağlantı kurulamadı!');
-      setCustomError('Sunucuyla bağlantı kurulamadı!');
     } finally {
       setLoading(false);
     }
   };
 
-  if (!mounted) {
-    return null; 
-  }
-
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-69px)] bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-      <ToastContainer position="top-right" autoClose={3000} />
-
-      <div className="w-full max-w-md p-8 bg-white/80 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/60 transition-all duration-300 hover:shadow-2xl">
-        <div className="text-center mb-8">
-          <span className="px-3 py-1 text-xs font-semibold text-blue-600 bg-blue-50 rounded-full">Güvenli Erişim</span>
-          <h2 className="text-3xl font-bold text-slate-800 mt-3">
-            {isReturningUser ? 'Tekrar Hoş Geldiniz' : 'Giriş Paneli'}
-          </h2>
-          <p className="text-sm text-slate-500 mt-1">Lütfen hesabınızla giriş yapın</p>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+      <ToastContainer position="top-right" autoClose={2000} theme="dark" />
+      
+      <div className="w-full max-w-md bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-800 shadow-2xl transition-all transform scale-100">
+        
+        {/* 🚀 ÜST LOGO / BAŞLIK ALANI */}
+        <div className="text-center space-y-2 mb-8">
+          <div className="w-14 h-14 bg-gradient-to-tr from-indigo-500 via-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto shadow-xl shadow-indigo-500/20 ring-2 ring-indigo-400/20 relative group overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+            <span className="text-2xl animate-pulse">🛡️</span>
+          </div>
+          <h1 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-transparent">
+            Giriş
+          </h1>
+          <p className="text-xs text-slate-400">Devam etmek için hesabınızda oturum açın.</p>
         </div>
 
-        {customError && (
-          <div className="mb-5 p-3.5 bg-red-50 border border-red-200 text-red-600 text-sm font-semibold rounded-xl text-center">
-            ⚠️ {customError}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {/* 📋 GİRİŞ FORMU */}
+        <form onSubmit={handleLogin} className="space-y-5">
           <div>
-            <label className="block text-sm font-semibold text-slate-700">E-posta Adresi</label>
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">E-Posta Adresi</label>
             <input
               type="email"
-              className="w-full px-4 py-2.5 mt-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-slate-50/50 text-slate-900 text-sm"
-              placeholder="isim@firma.com"
+              className="w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-slate-950 text-slate-200 text-sm placeholder-slate-700 transition-all"
+              placeholder="ornek@gmail.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
+
           <div>
-            <label className="block text-sm font-semibold text-slate-700">Şifre</label>
+            <div className="flex justify-between items-center">
+              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Şifre</label>
+              <button
+                type="button"
+                onClick={() => router.push('/forgot-password')} // Şifremi unuttum sayfasına paslar
+                className="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold transition"
+              >
+                Şifremi Unuttum
+              </button>
+            </div>
             <input
               type="password"
-              className="w-full px-4 py-2.5 mt-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-slate-50/50 text-slate-900 text-sm"
+              className="w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-slate-950 text-slate-200 text-sm placeholder-slate-700 transition-all"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
           </div>
-          
-          <div className="flex justify-center text-sm">
-            <Link href="/forgot-password" className="text-sm font-medium text-blue-600 hover:underline transition">
-              Şifremi Unuttum
-            </Link>
-          </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full py-3 text-white font-semibold rounded-xl shadow-md transition-all duration-200 ${
-              loading ? 'bg-slate-400' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700'
-            }`}
-          >
-            {loading ? 'İşlem yapılıyor...' : 'Giriş Yap'}
-          </button>
+          {/* 🏁 GİRİŞ BUTONU */}
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className={`w-full py-3 text-white font-bold rounded-xl shadow-lg transition-all cursor-pointer text-sm flex items-center justify-center gap-2 ${
+                loading ? 'bg-slate-800 text-slate-600' : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/10 active:scale-[0.99]'
+              }`}
+            >
+              {loading ? 'Oturum Açılıyor...' : 'Giriş Yap'}
+            </button>
+          </div>
         </form>
 
-        <div className="text-center text-sm text-slate-500 mt-6 border-t border-slate-100 pt-4">
-          Hesabınız yok mu?{' '}
-          <Link href="/register" className="text-blue-600 hover:underline font-semibold">
-            Şimdi Kayıt Olun
-          </Link>
+        {/* 🛡️ ALT BİLGİ NOTU */}
+        <div className="text-center mt-6 pt-4 border-t border-slate-800/50">
+          <p className="text-[11px] text-slate-500 font-mono">
+            Güvenlik katmanı aktif. JWT & BcryptJS korumalı alan.
+          </p>
         </div>
+
       </div>
     </div>
   );

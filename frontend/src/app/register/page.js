@@ -1,8 +1,7 @@
 'use client';
-import { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import axios from 'axios';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -10,69 +9,53 @@ export default function RegisterPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      router.replace('/dashboard');
-    }
-  }, [router]);
-
-  const handleSubmit = async (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
-    setLoading(true);
-
-    // 1. ADIM: Standart Format Kontrolü (Regex)
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!emailRegex.test(email)) {
-      toast.error('Geçersiz E-Posta!');
-      setLoading(false);
+    
+    // 🛡️ FRONTEND ÖN KONTROLLERİ (SENTE AYARI)
+    if (!name || !email || !password || !confirmPassword) {
+      toast.error('Lütfen tüm alanları doldurun!');
       return;
     }
 
-    // 2. ADIM: 🛡️ SALLAMA DOMAIN ENGELLEYİCİ (BEYAZ LİSTE)
-    // Sadece gerçek ve bilinen mail servislerine izin veriyoruz
-    const allowedDomains = ['gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'icloud.com', 'yandex.com'];
-    
-    // Girilen mailin domain kısmını cımbızla çekiyoruz (örn: 123@123.com -> 123.com)
-    const emailDomain = email.split('@')[1]?.toLowerCase();
-
-    // Eğer adamın yazdığı domain bizim güvenli listede yoksa geçit vermiyoruz!
-    if (!allowedDomains.includes(emailDomain)) {
-      toast.error('Geçersiz E-Posta!');
-      setLoading(false);
-      return; // Formu burada kilitliyoruz!
+    if (password !== confirmPassword) {
+      toast.error('Şifreler birbiriyle uyuşmuyor!');
+      return;
     }
 
+    if (password.length < 6) {
+      toast.error('Şifre en az 6 karakter olmalıdır!');
+      return;
+    }
+
+    setLoading(true);
+
     try {
-      const response = await axios.post(
-        'http://localhost:5000/api/auth/register', 
-        { name, email, password },
-        { validateStatus: (status) => status >= 200 && status < 500 }
-      );
+      const response = await axios.post('http://localhost:5000/api/auth/register', {
+        name,
+        email,
+        password
+      }, {
+        validateStatus: (status) => status >= 200 && status < 500
+      });
 
       if (response.status >= 400) {
-        let backendMessage = response.data?.message || 'Kayıt esnasında bir hata oluştu!';
-        
-        const lowerMessage = backendMessage.toLowerCase();
-        if (lowerMessage.includes('already registered') || lowerMessage.includes('already exists') || lowerMessage.includes('in use')) {
-          backendMessage = 'Bu e-posta adresi zaten sisteme kayıtlı!';
-        } else if (lowerMessage.includes('password tooshort') || lowerMessage.includes('password length')) {
-          backendMessage = 'Şifre çok kısa veya istenen kriterlere uymuyor!';
-        }
-
+        const backendMessage = response.data?.message || 'Kayıt esnasında bir hata oluştu!';
         toast.error(backendMessage);
         setLoading(false);
-        return; 
+        return;
       }
 
-      toast.success('Kayıt işlemi başarılı! Giriş paneline yönlendiriliyorsunuz...');
+      toast.success('Hesabınız başarıyla oluşturuldu! Giriş sayfasına aktarılıyorsunuz...');
       
+      // Kullanıcıyı doğrudan login sayfasına şutluyoruz
       setTimeout(() => {
         router.push('/login');
-      }, 2000);
+      }, 1500);
 
     } catch (err) {
       toast.error('Sunucuyla bağlantı kurulamadı!');
@@ -82,23 +65,31 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-69px)] bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-      <ToastContainer position="top-right" autoClose={3000} />
-
-      <div className="w-full max-w-md p-8 bg-white/80 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/60 transition-all duration-300 hover:shadow-2xl">
-        <div className="text-center mb-8">
-          <span className="px-3 py-1 text-xs font-semibold text-blue-600 bg-blue-50 rounded-full">Yeni Hesap Oluştur</span>
-          <h2 className="text-3xl font-bold text-slate-800 mt-3">Kayıt Paneli</h2>
-          <p className="text-sm text-slate-500 mt-1">Sisteme erişmek için bilgilerinizi girin</p>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+      <ToastContainer position="top-right" autoClose={2500} theme="dark" />
+      
+      <div className="w-full max-w-md bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-800 shadow-2xl transition-all transform scale-100">
+        
+        {/* 🚀 ÜST LOGO / BAŞLIK ALANI */}
+        <div className="text-center space-y-2 mb-6">
+          <div className="w-14 h-14 bg-gradient-to-tr from-indigo-500 via-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto shadow-xl shadow-indigo-500/20 ring-2 ring-indigo-400/20 relative group overflow-hidden">
+            {/* Arka planda parlayan fütüristik efekt çizgisi */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+            <span className="text-2xl animate-pulse">🔐</span>
+          </div>
+          <h1 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-indigo-300 bg-clip-text text-transparent">
+            Yeni Hesap Oluştur
+          </h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {/* 📋 KAYIT FORMU */}
+        <form onSubmit={handleRegister} className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-slate-700">Ad Soyad</label>
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Ad Soyad</label>
             <input
               type="text"
-              className="w-full px-4 py-2.5 mt-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-slate-50/50 text-slate-900 text-sm"
-              placeholder="Adınızı ve soyadınızı girin"
+              className="w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-slate-950 text-slate-200 text-sm placeholder-slate-700 transition-all"
+              placeholder="Walter White"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -106,11 +97,11 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700">E-posta Adresi</label>
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">E-Posta Adresi</label>
             <input
               type="email"
-              className="w-full px-4 py-2.5 mt-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-slate-50/50 text-slate-900 text-sm"
-              placeholder="isim@gmail.com"
+              className="w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-slate-950 text-slate-200 text-sm placeholder-slate-700 transition-all"
+              placeholder="ornek@gmail.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -118,10 +109,10 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700">Şifre</label>
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Şifre</label>
             <input
               type="password"
-              className="w-full px-4 py-2.5 mt-1.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-slate-50/50 text-slate-900 text-sm"
+              className="w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-slate-950 text-slate-200 text-sm placeholder-slate-700 transition-all"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -129,23 +120,45 @@ export default function RegisterPage() {
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full py-3 text-white font-semibold rounded-xl shadow-md transition-all duration-200 ${
-              loading ? 'bg-slate-400' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700'
-            }`}
-          >
-            {loading ? 'Hesap oluşturuluyor...' : 'Kayıt Ol'}
-          </button>
+          <div>
+            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Şifre (Tekrar)</label>
+            <input
+              type="password"
+              className="w-full px-4 py-2.5 mt-1.5 border border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-slate-950 text-slate-200 text-sm placeholder-slate-700 transition-all"
+              placeholder="••••••••"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+            />
+          </div>
+
+          {/* 🏁 KAYIT BUTONU */}
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className={`w-full py-3 text-white font-bold rounded-xl shadow-lg transition-all cursor-pointer text-sm flex items-center justify-center gap-2 ${
+                loading ? 'bg-slate-800 text-slate-600' : 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/10 active:scale-[0.99]'
+              }`}
+            >
+              {loading ? 'Hesap Oluşturuluyor...' : 'Kayıt Ol'}
+            </button>
+          </div>
         </form>
 
-        <div className="text-center text-sm text-slate-500 mt-6 border-t border-slate-100 pt-4">
-          Zaten hesabınız var mı?{' '}
-          <Link href="/login" className="text-blue-600 hover:underline font-semibold">
-            Giriş Yapın
-          </Link>
+        {/* 🔗 GİRİŞ YAP LINKI */}
+        <div className="text-center mt-6 pt-4 border-t border-slate-800/50 space-y-2">
+          <p className="text-xs text-slate-400">
+            Zaten bir hesabınız var mı?{' '}
+            <button
+              onClick={() => router.push('/login')}
+              className="text-indigo-400 hover:text-indigo-300 font-bold transition"
+            >
+              Giriş Yap
+            </button>
+          </p>
         </div>
+
       </div>
     </div>
   );
