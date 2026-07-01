@@ -158,5 +158,80 @@ const resetPassword = async (req, res) => {
   }
 };
 
-// İki fonksiyonu da dışarıya ihraç ediyoruz
-module.exports = { register, login, forgotPassword, resetPassword };
+// ... dosyadaki diğer eski fonksiyonlar (register, login vs.) yukarıda kalacak ...
+
+// 🚀 404 VE EXPORT HATASINI ÇÖZEN GERÇEK ŞİFRE DEĞİŞTİRME FONKSİYONU
+// 🛠️ 500 HATASINI ÇÖZEN GÜNCEL ŞİFRE DEĞİŞTİRME LOGİC (authController.js içi)
+// 🛠️ KOLON HATASINI ÇÖZEN GÜNCEL ŞİFRE DEĞİŞTİRME LOGİC (authController.js içi)
+// 🛠️ ŞİFRELEME (HASH) UYUMSUZLUĞUNU ÇÖZEN GÜNCEL FONKSİYON
+const changePassword = async (req, res) => {
+  try {
+    console.log("=== 🔐 ŞİFRE DEĞİŞTİRME TETİKLENDİ ===");
+    
+    const userId = req.user?.id || req.user?._id || req.user?.Id; 
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ message: 'Lütfen tüm alanları doldurun!' });
+    }
+
+    let pool;
+    try {
+      const mssql = require('mssql'); 
+      pool = await mssql.connect(); 
+    } catch (dbErr) {
+      const mssql = require('mssql');
+      if (typeof dbConfig !== 'undefined') { pool = await mssql.connect(dbConfig); }
+      else if (typeof config !== 'undefined') { pool = await mssql.connect(config); }
+      else { throw new Error("Veritabanı konfigürasyonu bulunamadı!"); }
+    }
+
+    // Kullanıcıyı veritabanından çekiyoruz
+    const userResult = await pool.request()
+      .input('id', userId) 
+      .query('SELECT * FROM Users WHERE id = @id');
+
+    const dbUser = userResult.recordset[0];
+
+    if (!dbUser) {
+      return res.status(404).json({ message: 'Kullanıcı bulunamadı!' });
+    }
+
+    const currentDbPassword = dbUser.Password || dbUser.password || dbUser.sifre;
+    
+    // 🛡️ BCRYPTJS İLE DOĞRULAMA (En tepedeki bcryptjs değişkenini kullanıyor)
+    const isMatch = await bcrypt.compare(oldPassword, currentDbPassword);
+    console.log("Bcryptjs Eşleşme Sonucu:", isMatch);
+    
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Mevcut şifreniz hatalı!' });
+    }
+
+    // 🚀 YENİ ŞİFREYİ DE BCRYPTJS İLE HASH'LEYİP KAYDEDİYORUZ
+    const salt = await bcrypt.genSalt(10);
+    const passwordToSave = await bcrypt.hash(newPassword, salt);
+
+    const passwordColumn = dbUser.Password ? 'Password' : 'password';
+
+    await pool.request()
+      .input('id', userId)
+      .input('newPass', passwordToSave)
+      .query(`UPDATE Users SET ${passwordColumn} = @newPass WHERE id = @id`);
+
+    console.log("=== ✅ ŞİFRE BAŞARIYLA GÜNCELLENDİ ===");
+    return res.status(200).json({ message: 'Şifreniz başarıyla değiştirildi!' });
+
+  } catch (error) {
+    console.error('❌ ŞİFRE DEĞİŞTİRME CORESİNDE PATLAYAN YER:', error);
+    return res.status(500).json({ message: `Sunucu Hatası: ${error.message || 'Veritabanı hatası'}` });
+  }
+};
+
+// 🚨 DOSYANIN EN ALTINDAKİ EXPORT ALANINI BUNA GÖRE EKSİKSİZ AYARLA:
+module.exports = {
+  register,   // yukarıda tanımlı olan register fonksiyonun
+  login,      // yukarıda tanımlı olan login fonksiyonun
+  forgotPassword,
+  resetPassword,
+  changePassword // <-- İşte yukarıda yazdığımız yeni fonksiyonu buraya kilitledik!
+};
